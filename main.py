@@ -83,43 +83,37 @@ def init_db():
     conn.close()
 
 # ==============================================================================
-# GENERACIÓN DE PDF (CON CARGA PROTEGIDA)
+# GENERACIÓN DE PDF
 # ==============================================================================
-def generar_pdf_boleta(venta, items, ruta_salida):
-    pdf = FPDF(unit="mm", format=(80, 150))  # Tamaño formato ticket térmico
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "DELICIAS CRISANT", ln=True, align="C")
-    pdf.set_font("Helvetica", size=9)
-    pdf.cell(0, 5, "Punto de Venta", ln=True, align="C")
-    pdf.line(5, pdf.get_y() + 2, 75, pdf.get_y() + 2)
-    pdf.ln(4)
-    
-    # Detalle de productos
-    pdf.set_font("Helvetica", size=8)
-    for it in items:
-        texto = f"{it['cant']}x {it['nombre']}"
-        precio = f"${it['subtotal']:,}".replace(",", ".")
-        pdf.cell(45, 5, texto)
-        pdf.cell(25, 5, precio, ln=True, align="R")
-        
-    pdf.line(5, pdf.get_y() + 2, 75, pdf.get_y() + 2)
-    pdf.ln(4)
-    pdf.set_font("Helvetica", "B", 10)
-    total_txt = f"${venta['total']:,}".replace(",", ".")
-    pdf.cell(40, 6, "TOTAL:")
-    pdf.cell(30, 6, total_txt, ln=True, align="R")
-    
-    pdf.output(ruta_salida)
-    return ruta_salida
+def parsear_lineas_detalle(detalle_str):
+    lineas = []
+    partes = detalle_str.split(" | ")
+    for p in partes:
+        p = p.strip()
+        if not p:
+            continue
+        try:
+            cant_str, resto = p.split("x ", 1)
+            nom, sub_str = resto.rsplit(" (", 1)
+            sub_val = int(sub_str.replace(")", "").replace("$", "").replace(".", "").strip())
+            cant_val = int(cant_str.strip())
+            precio_u = sub_val // cant_val if cant_val > 0 else sub_val
+            lineas.append({
+                "cant": cant_val,
+                "nombre": nom.strip(),
+                "precio": f"${precio_u:,}".replace(",", "."),
+                "subtotal": sub_val
+            })
+        except Exception:
+            lineas.append({"cant": "1", "nombre": p, "precio": "-", "subtotal": 0})
+    return lineas
 
 def generar_pdf(folio_info, cliente, lineas_detalle, total, estado, tipo_doc="VENTA"):
-    # Lazy import: Si reportlab falla en Android, la app NO se muere al abrir
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas
     except ImportError:
-        raise RuntimeError("ReportLab no está disponible en este entorno Android.")
+        raise RuntimeError("ReportLab no está disponible en este entorno.")
 
     nombre_archivo = f"Recibo_{folio_info}_{tipo_doc}.pdf".replace(" ", "_").replace("#", "")
     ruta_completa = os.path.join(CARPETA_DATOS, nombre_archivo)
@@ -215,30 +209,61 @@ def generar_pdf(folio_info, cliente, lineas_detalle, total, estado, tipo_doc="VE
     return ruta_completa
 
 # ==============================================================================
-# APLICACIÓN PRINCIPAL CON PROTECTOR DE ARRANQUE
+# APLICACIÓN PRINCIPAL
 # ==============================================================================
-def compartir_o_abrir_pdf(ruta_pdf):
+def app_principal(page: ft.Page):
+    init_db()
+
+    def mostrar_snack(mensaje: str, color=ft.Colors.GREEN_700):
+        snack = ft.SnackBar(
+            content=ft.Text(mensaje, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
+            bgcolor=color,
+            open=True
+        )
+        page.overlay.append(snack)
+        page.update()
+
+    def compartir_o_abrir_pdf(ruta_pdf):
         if not ruta_pdf or not os.path.exists(ruta_pdf):
             mostrar_snack("El archivo PDF no existe.", ft.Colors.RED_700)
             return
 
         nombre_archivo = os.path.basename(ruta_pdf)
-        destino_final = ruta_pdf
+        guardado_en_descargas = False
 
-        # Si corre en Android, lo copiamos a la carpeta pública de Descargas
-        if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
-            for carpeta in ["/storage/emulated/0/Download", "/sdcard/Download"]:
-                if os.path.exists(carpeta):
-                    try:
-                        destino = os.path.join(carpeta, nombre_archivo)
-                        shutil.copyfile(ruta_pdf, destino)
-                        destino_final = destino
-                        break
-                    except Exception:
-                        pass
+        # Guardar copia directa en la carpeta Descargas de Android
+        rutas_descargas = [
+            "/storage/emulated/0/Download",
+            "/sdcard/Download"
+        ]
+        for ruta_d in rutas_descargas:
+            if os.path.exists(ruta_d):
+                try:
+                    destino = os.path.join(ruta_d, nombre_archivo)
+                    shutil.copyfile(ruta_pdf, destino)
+                    guardado_en_descargas = True
+                    break
+                except Exception:
+                    pass
 
-        # Mostrar aviso claro en la app
-        mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
+        # Intento seguro de abrir o compartir
+        try:
+            if sys.platform == "win32":
+                os.startfile(ruta_pdf)
+            elif sys.platform == "darwin":
+                subprocess.run(["open", ruta_pdf], check=False)
+            elif sys.platform.startswith("linux") and not ("ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ):
+                subprocess.run(["xdg-open", ruta_pdf], check=False)
+            else:
+                if guardado_en_descargas:
+                    mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
+                else:
+                    mostrar_snack(f"Boleta generada: {nombre_archivo}", ft.Colors.GREEN_800)
+        except Exception:
+            if guardado_en_descargas:
+                mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
+            else:
+                mostrar_snack(f"PDF generado: {nombre_archivo}")
 
     # --------------------------------------------------------------------------
     # PESTAÑA 1: VENTAS
@@ -436,10 +461,11 @@ def compartir_o_abrir_pdf(ruta_pdf):
         folio = c.lastrowid
         conn.close()
 
-        # Generar PDF con manejo de errores
         ruta_pdf = None
         try:
             ruta_pdf = generar_pdf(f"{folio:05d}", cliente, carrito, total, estado, "VENTA")
+            # Dejar copia lista en Descargas de inmediato
+            compartir_o_abrir_pdf(ruta_pdf)
         except Exception as ex_pdf:
             mostrar_snack(f"Venta guardada. PDF no disponible: {ex_pdf}", ft.Colors.ORANGE_800)
 
@@ -456,18 +482,18 @@ def compartir_o_abrir_pdf(ruta_pdf):
                 dlg_exito.open = False
                 page.update()
 
-            def compartir_exito(ev):
+            def abrir_exito(ev):
                 dlg_exito.open = False
                 page.update()
                 compartir_o_abrir_pdf(ruta_pdf)
 
             dlg_exito = ft.AlertDialog(
                 title=ft.Text("Venta Registrada con Éxito"),
-                content=ft.Text(f"Boleta #{folio:05d} lista. ¿Deseas enviarla al cliente?"),
+                content=ft.Text(f"Boleta #{folio:05d} guardada en Descargas."),
                 open=True,
                 actions=[
                     ft.TextButton("Cerrar", on_click=cerrar_exito),
-                    ft.FilledButton("Compartir PDF", icon=ft.Icons.SHARE, on_click=compartir_exito)
+                    ft.FilledButton("Ver / Abrir Boleta", icon=ft.Icons.FILE_OPEN, on_click=abrir_exito)
                 ]
             )
             page.overlay.append(dlg_exito)
@@ -687,9 +713,9 @@ def compartir_o_abrir_pdf(ruta_pdf):
                             title=ft.Text(f"Boleta #{f:05d} - {cli}"),
                             subtitle=ft.Text(f"${tot:,} | {est} | {fecha[:10]}".replace(",", ".")),
                             trailing=ft.IconButton(
-                                icon=ft.Icons.SHARE,
+                                icon=ft.Icons.FILE_OPEN,
                                 icon_color=ft.Colors.BLUE_700,
-                                tooltip="Compartir PDF",
+                                tooltip="Guardar / Abrir en Descargas",
                                 on_click=lambda ev, fol=f, c_name=cli, t_val=tot, s_val=est, d_str=det: compartir_boleta_historial(fol, c_name, t_val, s_val, d_str)
                             )
                         )
@@ -865,7 +891,7 @@ def compartir_o_abrir_pdf(ruta_pdf):
     page.add(contenedor_principal)
 
 # ==============================================================================
-# ENTRY POINT CON CAPTURA VISUAL DE ERRORES (CRITICAL CATCHER)
+# ENTRY POINT
 # ==============================================================================
 def main(page: ft.Page):
     page.title = "Delicias Crisant - POS"
