@@ -1,0 +1,22 @@
+﻿[project]
+name = "crisantpos"
+version = "0.1.0"
+description = "Delicias Crisant POS"
+dependencies = [
+    "flet",
+    "reportlab",
+    "pillow"
+]
+
+[tool.flet]
+app_name = "Delicias Crisant"
+org = "org.crisant"
+product = "Delicias Crisant"
+company = "Crisant"
+
+[tool.flet.app]
+path = "."
+
+[tool.flet.flutter]
+assets = ["assets"]
+icon = "assets/logo.jpeg"
