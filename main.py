@@ -85,28 +85,33 @@ def init_db():
 # ==============================================================================
 # GENERACIÓN DE PDF (CON CARGA PROTEGIDA)
 # ==============================================================================
-def parsear_lineas_detalle(detalle_str):
-    lineas = []
-    partes = detalle_str.split(" | ")
-    for p in partes:
-        p = p.strip()
-        if not p:
-            continue
-        try:
-            cant_str, resto = p.split("x ", 1)
-            nom, sub_str = resto.rsplit(" (", 1)
-            sub_val = int(sub_str.replace(")", "").replace("$", "").replace(".", "").strip())
-            cant_val = int(cant_str.strip())
-            precio_u = sub_val // cant_val if cant_val > 0 else sub_val
-            lineas.append({
-                "cant": cant_val,
-                "nombre": nom.strip(),
-                "precio": f"${precio_u:,}".replace(",", "."),
-                "subtotal": sub_val
-            })
-        except Exception:
-            lineas.append({"cant": "1", "nombre": p, "precio": "-", "subtotal": 0})
-    return lineas
+def generar_pdf_boleta(venta, items, ruta_salida):
+    pdf = FPDF(unit="mm", format=(80, 150))  # Tamaño formato ticket térmico
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "DELICIAS CRISANT", ln=True, align="C")
+    pdf.set_font("Helvetica", size=9)
+    pdf.cell(0, 5, "Punto de Venta", ln=True, align="C")
+    pdf.line(5, pdf.get_y() + 2, 75, pdf.get_y() + 2)
+    pdf.ln(4)
+    
+    # Detalle de productos
+    pdf.set_font("Helvetica", size=8)
+    for it in items:
+        texto = f"{it['cant']}x {it['nombre']}"
+        precio = f"${it['subtotal']:,}".replace(",", ".")
+        pdf.cell(45, 5, texto)
+        pdf.cell(25, 5, precio, ln=True, align="R")
+        
+    pdf.line(5, pdf.get_y() + 2, 75, pdf.get_y() + 2)
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "B", 10)
+    total_txt = f"${venta['total']:,}".replace(",", ".")
+    pdf.cell(40, 6, "TOTAL:")
+    pdf.cell(30, 6, total_txt, ln=True, align="R")
+    
+    pdf.output(ruta_salida)
+    return ruta_salida
 
 def generar_pdf(folio_info, cliente, lineas_detalle, total, estado, tipo_doc="VENTA"):
     # Lazy import: Si reportlab falla en Android, la app NO se muere al abrir
