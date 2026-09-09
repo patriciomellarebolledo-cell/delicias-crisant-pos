@@ -3,31 +3,41 @@ name: Compilar APK Delicias Crisant
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "principal" ]
+    branches: [ "principal", "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar codigo
+      - name: Descargar repositorio
         uses: actions/checkout@v4
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
 
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Instalar Flet y herramientas
+      - name: Instalar dependencias Flet
         run: |
-          pip install --upgrade pip
-          pip install "flet[all]" reportlab pillow
+          python -m pip install --upgrade pip
+          pip install flet[all] reportlab pillow
 
-      - name: Compilar APK con Flet
-        uses: flet-dev/flet-build-action@v1
-        with:
-          target: apk
+      - name: Compilar APK
+        run: |
+          flet build apk -v
 
-      - name: Guardar APK para descarga
+      - name: Subir instalador APK
         uses: actions/upload-artifact@v4
         with:
           name: Delicias-Crisant-APK
