@@ -4,8 +4,7 @@ version = "0.1.0"
 description = "Delicias Crisant POS"
 dependencies = [
     "flet",
-    "reportlab",
-    "pillow"
+    "reportlab"
 ]
 
 [tool.flet]
