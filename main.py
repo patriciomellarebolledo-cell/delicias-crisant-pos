@@ -218,38 +218,22 @@ def compartir_o_abrir_pdf(ruta_pdf):
             return
 
         nombre_archivo = os.path.basename(ruta_pdf)
-        ruta_final = ruta_pdf
+        destino_final = ruta_pdf
 
-        # Copiar siempre a Descargas para que nunca se pierda
+        # Si corre en Android, lo copiamos a la carpeta pública de Descargas
         if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
-            posibles = ["/storage/emulated/0/Download", "/sdcard/Download"]
-            for d in posibles:
-                if os.path.exists(d):
+            for carpeta in ["/storage/emulated/0/Download", "/sdcard/Download"]:
+                if os.path.exists(carpeta):
                     try:
-                        destino = os.path.join(d, nombre_archivo)
+                        destino = os.path.join(carpeta, nombre_archivo)
                         shutil.copyfile(ruta_pdf, destino)
-                        ruta_final = destino
+                        destino_final = destino
                         break
                     except Exception:
                         pass
 
-        # Intentar compartir por canales nativos sin caerse
-        try:
-            if hasattr(page, "share") and callable(page.share):
-                page.share(files=[ruta_final], text=f"Boleta {nombre_archivo}")
-                return
-        except Exception:
-            pass
-
-        try:
-            if sys.platform == "win32":
-                os.startfile(ruta_final)
-            elif sys.platform == "darwin":
-                subprocess.run(["open", ruta_final], check=False)
-            else:
-                subprocess.run(["xdg-open", ruta_final], check=False)
-        except Exception:
-            mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
+        # Mostrar aviso claro en la app
+        mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
 
     # --------------------------------------------------------------------------
     # PESTAÑA 1: VENTAS
