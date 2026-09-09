@@ -32,7 +32,7 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Aceptar licencias de Android SDK
         run: |
@@ -45,7 +45,7 @@ jobs:
 
       - name: Compilar APK
         run: |
-          flet build apk -v --python-version 3.11
+          flet build apk -v --python-version 3.12
 
       - name: Subir instalador APK
         uses: actions/upload-artifact@v4
