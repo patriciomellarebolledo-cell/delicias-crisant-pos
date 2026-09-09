@@ -12,7 +12,7 @@ jobs:
       - name: Descargar codigo
         uses: actions/checkout@v4
 
-      - name: Instalar librerias de sistema
+      - name: Instalar dependencias de sistema Linux
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev ninja-build
@@ -29,7 +29,7 @@ jobs:
           flutter-version: '3.44.8'
           channel: 'stable'
 
-      - name: Aceptar licencias de Android SDK
+      - name: Aceptar licencias Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
@@ -38,16 +38,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar Flet y dependencias
+      - name: Instalar Flet CLI y dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install "flet[all]" fpdf2
+          pip install "flet[all]" reportlab
 
       - name: Compilar APK
         run: |
           flet build apk -v
 
-      - name: Guardar APK como descarga
+      - name: Guardar APK como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: Delicias-Crisant-APK
