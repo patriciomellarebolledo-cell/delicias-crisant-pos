@@ -45,7 +45,7 @@ jobs:
 
       - name: Compilar APK
         run: |
-          flet build apk -v --no-android-archive
+          flet build apk -v
 
       - name: Guardar APK como descarga
         uses: actions/upload-artifact@v4
