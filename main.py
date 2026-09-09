@@ -220,39 +220,27 @@ def compartir_o_abrir_pdf(ruta_pdf):
         nombre_archivo = os.path.basename(ruta_pdf)
         ruta_final = ruta_pdf
 
-        # Si estamos en Android, copiamos el archivo a la carpeta pública Download (Descargas)
+        # Copiar siempre a Descargas para que nunca se pierda
         if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
-            posibles_descargas = [
-                "/storage/emulated/0/Download",
-                "/sdcard/Download",
-            ]
-            for carpeta_pub in posibles_descargas:
-                if os.path.exists(carpeta_pub):
+            posibles = ["/storage/emulated/0/Download", "/sdcard/Download"]
+            for d in posibles:
+                if os.path.exists(d):
                     try:
-                        destino = os.path.join(carpeta_pub, nombre_archivo)
+                        destino = os.path.join(d, nombre_archivo)
                         shutil.copyfile(ruta_pdf, destino)
                         ruta_final = destino
                         break
                     except Exception:
                         pass
 
-        # 1. Intentar abrir la hoja nativa de compartir de Android (WhatsApp, Drive, etc.)
+        # Intentar compartir por canales nativos sin caerse
         try:
-            if hasattr(page, "share_files") and callable(page.share_files):
-                page.share_files([ruta_final], text=f"Boleta {nombre_archivo}")
+            if hasattr(page, "share") and callable(page.share):
+                page.share(files=[ruta_final], text=f"Boleta {nombre_archivo}")
                 return
         except Exception:
             pass
 
-        try:
-            if hasattr(page, "share") and page.share:
-                sf = ft.ShareFile.from_path(ruta_final, name=nombre_archivo)
-                page.share.share_files([sf], text=f"Boleta {nombre_archivo}")
-                return
-        except Exception:
-            pass
-
-        # 2. Si está en PC, abrir con el visor predeterminado
         try:
             if sys.platform == "win32":
                 os.startfile(ruta_final)
@@ -261,7 +249,7 @@ def compartir_o_abrir_pdf(ruta_pdf):
             else:
                 subprocess.run(["xdg-open", ruta_final], check=False)
         except Exception:
-            mostrar_snack(f"PDF guardado en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
+            mostrar_snack(f"Boleta guardada en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
 
     # --------------------------------------------------------------------------
     # PESTAÑA 1: VENTAS
