@@ -212,40 +212,56 @@ def generar_pdf(folio_info, cliente, lineas_detalle, total, estado, tipo_doc="VE
 # ==============================================================================
 # APLICACIÓN PRINCIPAL CON PROTECTOR DE ARRANQUE
 # ==============================================================================
-def app_principal(page: ft.Page):
-    init_db()
-
-    def mostrar_snack(mensaje: str, color=ft.Colors.GREEN_700):
-        snack = ft.SnackBar(
-            content=ft.Text(mensaje, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD),
-            bgcolor=color,
-            open=True
-        )
-        page.overlay.append(snack)
-        page.update()
-
-    def compartir_o_abrir_pdf(ruta_pdf):
+def compartir_o_abrir_pdf(ruta_pdf):
         if not ruta_pdf or not os.path.exists(ruta_pdf):
             mostrar_snack("El archivo PDF no existe.", ft.Colors.RED_700)
             return
 
+        nombre_archivo = os.path.basename(ruta_pdf)
+        ruta_final = ruta_pdf
+
+        # Si estamos en Android, copiamos el archivo a la carpeta pública Download (Descargas)
+        if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
+            posibles_descargas = [
+                "/storage/emulated/0/Download",
+                "/sdcard/Download",
+            ]
+            for carpeta_pub in posibles_descargas:
+                if os.path.exists(carpeta_pub):
+                    try:
+                        destino = os.path.join(carpeta_pub, nombre_archivo)
+                        shutil.copyfile(ruta_pdf, destino)
+                        ruta_final = destino
+                        break
+                    except Exception:
+                        pass
+
+        # 1. Intentar abrir la hoja nativa de compartir de Android (WhatsApp, Drive, etc.)
         try:
-            if hasattr(page, "share") and page.share:
-                share_file = ft.ShareFile.from_path(ruta_pdf, name=os.path.basename(ruta_pdf))
-                page.share.share_files([share_file], text="Boleta Delicias Crisant")
+            if hasattr(page, "share_files") and callable(page.share_files):
+                page.share_files([ruta_final], text=f"Boleta {nombre_archivo}")
                 return
         except Exception:
             pass
 
         try:
-            if sys.platform == "win32":
-                os.startfile(ruta_pdf)
-            elif sys.platform == "darwin":
-                subprocess.run(["open", ruta_pdf], check=False)
-            else:
-                subprocess.run(["xdg-open", ruta_pdf], check=False)
+            if hasattr(page, "share") and page.share:
+                sf = ft.ShareFile.from_path(ruta_final, name=nombre_archivo)
+                page.share.share_files([sf], text=f"Boleta {nombre_archivo}")
+                return
         except Exception:
-            mostrar_snack(f"PDF generado: {os.path.basename(ruta_pdf)}")
+            pass
+
+        # 2. Si está en PC, abrir con el visor predeterminado
+        try:
+            if sys.platform == "win32":
+                os.startfile(ruta_final)
+            elif sys.platform == "darwin":
+                subprocess.run(["open", ruta_final], check=False)
+            else:
+                subprocess.run(["xdg-open", ruta_final], check=False)
+        except Exception:
+            mostrar_snack(f"PDF guardado en Descargas: {nombre_archivo}", ft.Colors.GREEN_800)
 
     # --------------------------------------------------------------------------
     # PESTAÑA 1: VENTAS
