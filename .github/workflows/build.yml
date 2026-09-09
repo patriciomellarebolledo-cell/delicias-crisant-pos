@@ -36,7 +36,7 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Instalar Flet CLI
         run: |
@@ -45,7 +45,7 @@ jobs:
 
       - name: Compilar APK
         run: |
-          flet build apk -v
+          flet build apk --python-version 3.12 -v
 
       - name: Guardar APK como descarga
         uses: actions/upload-artifact@v4
