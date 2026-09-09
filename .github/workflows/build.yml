@@ -33,12 +33,12 @@ jobs:
         run: |
           yes | flutter doctor --android-licenses || true
 
-      - name: Configurar Python
+      - name: Configurar Python del sistema
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - name: Instalar Flet y paquetes
+      - name: Instalar Flet CLI y dependencias
         run: |
           python -m pip install --upgrade pip
           pip install "flet[all]" reportlab pillow
