@@ -38,10 +38,10 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Instalar Flet estable y dependencias
+      - name: Instalar Flet y paquetes de compilacion
         run: |
           python -m pip install --upgrade pip
-          pip install "flet==0.24.1" reportlab pillow
+          pip install "flet==0.24.1" reportlab
 
       - name: Compilar APK
         run: |
