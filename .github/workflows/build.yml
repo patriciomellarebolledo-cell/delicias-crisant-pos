@@ -12,11 +12,6 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Instalar dependencias del sistema Linux
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev ninja-build
-
       - name: Instalar Java 17
         uses: actions/setup-java@v4
         with:
@@ -32,20 +27,16 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
-      - name: Aceptar licencias de Android SDK
-        run: |
-          yes | flutter doctor --android-licenses || true
-
-      - name: Instalar Flet CLI y dependencias
+      - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install "flet[all]" reportlab pillow
 
       - name: Compilar APK
         run: |
-          flet build apk -v --python-version 3.12
+          yes | flet build apk -v
 
       - name: Subir instalador APK
         uses: actions/upload-artifact@v4
