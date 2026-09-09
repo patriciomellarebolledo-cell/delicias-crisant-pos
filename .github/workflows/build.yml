@@ -12,6 +12,11 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
+      - name: Instalar dependencias del sistema Linux
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev ninja-build
+
       - name: Instalar Java 17
         uses: actions/setup-java@v4
         with:
