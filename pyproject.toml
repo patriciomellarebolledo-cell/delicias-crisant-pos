@@ -17,9 +17,6 @@ company = "Crisant"
 [tool.flet.app]
 path = "."
 
-[tool.flet.apk]
-python_version = "3.12"
-
 [tool.flet.flutter]
 assets = ["assets"]
 icon = "assets/logo.jpeg"
