@@ -271,7 +271,63 @@ def app_principal(page: ft.Page):
     carrito = []
     productos_en_memoria = []
 
-    txt_cliente_nuevo = ft.TextField(label="Nombre del cliente", dense=True)
+    # Lista dinámica de sugerencias de clientes
+    columna_sugerencias_cli = ft.Column(spacing=2, visible=False)
+    contenedor_sugerencias = ft.Container(
+        content=columna_sugerencias_cli,
+        border=ft.Border.all(1, ft.Colors.BROWN_300),
+        border_radius=8,
+        padding=4,
+        visible=False
+    )
+
+    def sugerir_clientes_al_escribir(e):
+        texto = txt_cliente_nuevo.value.strip().lower()
+        if len(texto) < 1:
+            contenedor_sugerencias.visible = False
+            columna_sugerencias_cli.controls.clear()
+            page.update()
+            return
+
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT nombre, telefono FROM clientes WHERE LOWER(nombre) LIKE ? ORDER BY nombre ASC LIMIT 5", (f"%{texto}%",))
+        coincidencias = c.fetchall()
+        conn.close()
+
+        columna_sugerencias_cli.controls.clear()
+        if coincidencias:
+            for nom, tel in coincidencias:
+                def seleccionar_sugerido(ev, n=nom, t=tel):
+                    txt_cliente_nuevo.value = n
+                    txt_telefono.value = t if t else ""
+                    contenedor_sugerencias.visible = False
+                    columna_sugerencias_cli.controls.clear()
+                    page.update()
+
+                columna_sugerencias_cli.controls.append(
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.PERSON_PIN, size=16, color=ft.Colors.BROWN_600),
+                            ft.Text(nom, weight=ft.FontWeight.BOLD, size=13),
+                            ft.Text(f"({tel})" if tel else "", size=11, color=ft.Colors.GREY_600)
+                        ], spacing=6),
+                        padding=6,
+                        border_radius=5,
+                        ink=True,
+                        on_click=seleccionar_sugerido
+                    )
+                )
+            contenedor_sugerencias.visible = True
+        else:
+            contenedor_sugerencias.visible = False
+        page.update()
+
+    txt_cliente_nuevo = ft.TextField(
+        label="Nombre del cliente", 
+        dense=True, 
+        on_change=sugerir_clientes_al_escribir
+    )
     txt_telefono = ft.TextField(label="Teléfono (Opcional)", dense=True)
     
     lbl_producto_seleccionado = ft.Text("Cargando productos...", weight=ft.FontWeight.BOLD)
@@ -348,7 +404,7 @@ def app_principal(page: ft.Page):
         page.update()
 
     def abrir_dialogo_productos(e):
-        lista_ui = ft.ListView(spacing=5, height=300)
+        lista_ui = ft.ListView(spacing=5, height=280)
 
         def elegir_prod(nom, pr, dlg):
             prod_seleccionado_data["nombre"] = nom
@@ -357,15 +413,41 @@ def app_principal(page: ft.Page):
             dlg.open = False
             page.update()
 
-        for pid, nom, pr in productos_en_memoria:
-            lista_ui.controls.append(
-                ft.ListTile(
-                    leading=ft.Icon(ft.Icons.COOKIE, color=ft.Colors.BROWN_600),
-                    title=ft.Text(nom, weight=ft.FontWeight.BOLD),
-                    subtitle=ft.Text(f"${pr:,} CLP".replace(",", ".")),
-                    on_click=lambda ev, n=nom, p=pr: elegir_prod(n, p, dlg_prod)
+        def rellenar_lista_productos(filtro=""):
+            lista_ui.controls.clear()
+            termino = filtro.strip().lower()
+            coincidencias = [
+                (pid, nom, pr) for pid, nom, pr in productos_en_memoria 
+                if termino in nom.lower()
+            ]
+            if not coincidencias:
+                lista_ui.controls.append(
+                    ft.Container(
+                        content=ft.Text("No se encontraron productos.", italic=True, color=ft.Colors.GREY_600),
+                        padding=10
+                    )
                 )
-            )
+            else:
+                for pid, nom, pr in coincidencias:
+                    lista_ui.controls.append(
+                        ft.ListTile(
+                            leading=ft.Icon(ft.Icons.COOKIE, color=ft.Colors.BROWN_600),
+                            title=ft.Text(nom, weight=ft.FontWeight.BOLD),
+                            subtitle=ft.Text(f"${pr:,} CLP".replace(",", ".")),
+                            on_click=lambda ev, n=nom, p=pr: elegir_prod(n, p, dlg_prod)
+                        )
+                    )
+            page.update()
+
+        rellenar_lista_productos()
+
+        txt_buscar_prod = ft.TextField(
+            label="Buscar producto...",
+            prefix_icon=ft.Icons.SEARCH,
+            dense=True,
+            autofocus=True,
+            on_change=lambda ev: rellenar_lista_productos(ev.control.value)
+        )
 
         def cerrar_dialogo(ev):
             dlg_prod.open = False
@@ -373,7 +455,11 @@ def app_principal(page: ft.Page):
 
         dlg_prod = ft.AlertDialog(
             title=ft.Text("Seleccionar Producto"),
-            content=lista_ui if productos_en_memoria else ft.Text("No hay productos registrados."),
+            content=ft.Column([
+                txt_buscar_prod,
+                ft.Divider(height=1),
+                lista_ui
+            ], tight=True, width=320),
             open=True,
             actions=[ft.TextButton("Cerrar", on_click=cerrar_dialogo)]
         )
@@ -518,6 +604,7 @@ def app_principal(page: ft.Page):
             ft.Text("Nueva Venta", size=18, weight=ft.FontWeight.BOLD),
             btn_seleccionar_cliente,
             txt_cliente_nuevo,
+            contenedor_sugerencias,
             txt_telefono,
             ft.Divider(height=1),
             ft.Text("Producto Seleccionado:", weight=ft.FontWeight.BOLD),
