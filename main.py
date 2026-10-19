@@ -11,18 +11,29 @@ import flet as ft
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 
 # ==============================================================================
-# ALMACENAMIENTO SEGURO Y RESPALDO AUTOMÁTICO
+# ALMACENAMIENTO INTERNO SEGURO PARA SQLITE
 # ==============================================================================
 def obtener_ruta_almacenamiento():
     if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
-        rutas_permanentes = [
+        # Probar primero el directorio privado de la app donde SQLite funciona al 100%
+        candidatos = [
+            os.environ.get("FLET_APP_STORAGE_DATA"),
             os.path.expanduser("~"),
-            "/storage/emulated/0/Download",
-            "/sdcard/Download"
+            tempfile.gettempdir()
         ]
-        for ruta in rutas_permanentes:
-            if os.path.exists(ruta) and os.access(ruta, os.W_OK):
-                return ruta
+        for directorio in candidatos:
+            if directorio:
+                try:
+                    os.makedirs(directorio, exist_ok=True)
+                    ruta_test = os.path.join(directorio, ".test_sqlite.db")
+                    conn_test = sqlite3.connect(ruta_test)
+                    conn_test.execute("CREATE TABLE IF NOT EXISTS t (id INT)")
+                    conn_test.close()
+                    if os.path.exists(ruta_test):
+                        os.remove(ruta_test)
+                    return directorio
+                except Exception:
+                    continue
         return tempfile.gettempdir()
     return DIRECTORIO_APP
 
@@ -30,7 +41,7 @@ CARPETA_DATOS = obtener_ruta_almacenamiento()
 DB_NAME = os.path.join(CARPETA_DATOS, "alfajores_local.db")
 
 def respaldar_db_en_descargas():
-    """Guarda una copia automática de la base de datos en Descargas de Android."""
+    """Copia el archivo .db terminado a la carpeta Descargas como respaldo."""
     if not os.path.exists(DB_NAME):
         return
     for ruta_d in ["/storage/emulated/0/Download", "/sdcard/Download"]:
@@ -47,16 +58,18 @@ def get_db():
     return sqlite3.connect(DB_NAME)
 
 def init_db():
-    if not os.path.exists(DB_NAME):
+    # Si no existe la base de datos activa o está vacía, la copia desde assets o Descargas
+    necesita_copia = not os.path.exists(DB_NAME) or os.path.getsize(DB_NAME) == 0
+    if necesita_copia:
         for posible in [
             "/storage/emulated/0/Download/alfajores_local.db",
             "/sdcard/Download/alfajores_local.db",
             os.path.join(DIRECTORIO_APP, "assets", "alfajores_local.db"),
             os.path.join(DIRECTORIO_APP, "alfajores_local.db")
         ]:
-            if os.path.exists(posible):
+            if os.path.exists(posible) and os.path.getsize(posible) > 0:
                 try:
-                    shutil.copy(posible, DB_NAME)
+                    shutil.copyfile(posible, DB_NAME)
                     break
                 except Exception:
                     pass
@@ -613,7 +626,7 @@ def app_principal(page: ft.Page):
             ft.Text("Productos en la orden:", weight=ft.FontWeight.BOLD),
             ft.Container(
                 content=columna_carrito, 
-                border=ft.border.all(1, ft.Colors.GREY_400), 
+                border=ft.Border.all(1, ft.Colors.GREY_400), 
                 border_radius=8, 
                 padding=6
             ),
