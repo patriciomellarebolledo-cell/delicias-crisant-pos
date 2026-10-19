@@ -11,25 +11,47 @@ import flet as ft
 DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
 
 # ==============================================================================
-# ALMACENAMIENTO SEGURO
+# ALMACENAMIENTO SEGURO Y RESPALDO AUTOMÁTICO
 # ==============================================================================
 def obtener_ruta_almacenamiento():
     if "ANDROID_DATA" in os.environ or "ANDROID_ROOT" in os.environ:
-        directorio = os.path.expanduser("~")
-        if not os.path.exists(directorio) or not os.access(directorio, os.W_OK):
-            directorio = tempfile.gettempdir()
-        return directorio
+        rutas_permanentes = [
+            os.path.expanduser("~"),
+            "/storage/emulated/0/Download",
+            "/sdcard/Download"
+        ]
+        for ruta in rutas_permanentes:
+            if os.path.exists(ruta) and os.access(ruta, os.W_OK):
+                return ruta
+        return tempfile.gettempdir()
     return DIRECTORIO_APP
 
 CARPETA_DATOS = obtener_ruta_almacenamiento()
 DB_NAME = os.path.join(CARPETA_DATOS, "alfajores_local.db")
 
+def respaldar_db_en_descargas():
+    """Guarda una copia automática de la base de datos en Descargas de Android."""
+    if not os.path.exists(DB_NAME):
+        return
+    for ruta_d in ["/storage/emulated/0/Download", "/sdcard/Download"]:
+        if os.path.exists(ruta_d):
+            try:
+                destino = os.path.join(ruta_d, "alfajores_local.db")
+                if os.path.abspath(DB_NAME) != os.path.abspath(destino):
+                    shutil.copyfile(DB_NAME, destino)
+                break
+            except Exception:
+                pass
+
 def get_db():
     return sqlite3.connect(DB_NAME)
 
 def init_db():
+    # Si no existe en la carpeta interna, intenta recuperarla de Descargas o de assets
     if not os.path.exists(DB_NAME):
         for posible in [
+            "/storage/emulated/0/Download/alfajores_local.db",
+            "/sdcard/Download/alfajores_local.db",
             os.path.join(DIRECTORIO_APP, "assets", "alfajores_local.db"),
             os.path.join(DIRECTORIO_APP, "alfajores_local.db")
         ]:
@@ -81,6 +103,7 @@ def init_db():
         c.executemany("INSERT INTO productos (nombre, precio) VALUES (?, ?)", iniciales)
     conn.commit()
     conn.close()
+    respaldar_db_en_descargas()
 
 # ==============================================================================
 # GENERACIÓN DE PDF
@@ -231,7 +254,6 @@ def app_principal(page: ft.Page):
         nombre_archivo = os.path.basename(ruta_pdf)
         guardado_en_descargas = False
 
-        # Guardar copia directa en la carpeta Descargas de Android
         rutas_descargas = [
             "/storage/emulated/0/Download",
             "/sdcard/Download"
@@ -240,13 +262,13 @@ def app_principal(page: ft.Page):
             if os.path.exists(ruta_d):
                 try:
                     destino = os.path.join(ruta_d, nombre_archivo)
-                    shutil.copyfile(ruta_pdf, destino)
+                    if os.path.abspath(ruta_pdf) != os.path.abspath(destino):
+                        shutil.copyfile(ruta_pdf, destino)
                     guardado_en_descargas = True
                     break
                 except Exception:
                     pass
 
-        # Intento seguro de abrir o compartir
         try:
             if sys.platform == "win32":
                 os.startfile(ruta_pdf)
@@ -520,11 +542,11 @@ def app_principal(page: ft.Page):
         conn.commit()
         folio = c.lastrowid
         conn.close()
+        respaldar_db_en_descargas()
 
         ruta_pdf = None
         try:
             ruta_pdf = generar_pdf(f"{folio:05d}", cliente, carrito, total, estado, "VENTA")
-            # Dejar copia lista en Descargas de inmediato
             compartir_o_abrir_pdf(ruta_pdf)
         except Exception as ex_pdf:
             mostrar_snack(f"Venta guardada. PDF no disponible: {ex_pdf}", ft.Colors.ORANGE_800)
@@ -621,6 +643,7 @@ def app_principal(page: ft.Page):
         c.execute(f"UPDATE ventas SET estado = 'PAGADO', fecha_pago = ? WHERE folio IN ({','.join(['?']*len(folios))})", [fecha_pago] + folios)
         conn.commit()
         conn.close()
+        respaldar_db_en_descargas()
 
         lineas_recibo = [
             {"cant": "1", "nombre": f"Boleta #{b[0]:05d} ({b[2][:25]})", "precio": f"${b[1]:,}".replace(",", "."), "subtotal": b[1]}
@@ -813,6 +836,7 @@ def app_principal(page: ft.Page):
             c.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
             conn.commit()
             conn.close()
+            respaldar_db_en_descargas()
 
             dlg_conf.open = False
             cargar_catalogo()
@@ -852,6 +876,7 @@ def app_principal(page: ft.Page):
         """, (nombre, precio))
         conn.commit()
         conn.close()
+        respaldar_db_en_descargas()
 
         txt_nombre_prod.value = ""
         txt_precio_prod.value = ""
