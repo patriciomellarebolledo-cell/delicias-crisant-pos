@@ -47,7 +47,6 @@ def get_db():
     return sqlite3.connect(DB_NAME)
 
 def init_db():
-    # Si no existe en la carpeta interna, intenta recuperarla de Descargas o de assets
     if not os.path.exists(DB_NAME):
         for posible in [
             "/storage/emulated/0/Download/alfajores_local.db",
@@ -614,7 +613,7 @@ def app_principal(page: ft.Page):
             ft.Text("Productos en la orden:", weight=ft.FontWeight.BOLD),
             ft.Container(
                 content=columna_carrito, 
-                border=ft.Border.all(1, ft.Colors.BLACK26), 
+                border=ft.border.all(1, ft.Colors.GREY_400), 
                 border_radius=8, 
                 padding=6
             ),
